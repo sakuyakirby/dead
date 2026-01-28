@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>極限アクション 10：隠しクリア版</title>
+    <title>極限アクション 10：物理調整版</title>
     <style>
         body { margin: 0; background: #111; font-family: sans-serif; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: center; height: 100vh; width: 100vw; }
         #ui { position: absolute; top: 20px; left: 20px; color: #ff4444; font-size: 24px; font-weight: bold; z-index: 10; display: none; pointer-events: none; }
@@ -25,7 +25,7 @@
         <h1 style="color: #ffaa00; font-size: 32px; margin-bottom: 20px;">極限・初見殺し 10</h1>
         <button class="easy-btn" onclick="startGame('EASY')">EASY (3回リトライ可)</button><br>
         <button class="normal-btn" onclick="startGame('NORMAL')">NORMAL (ミス＝1面へ)</button><br>
-        <button class="hard-btn" onclick="startGame('HARD')">HARD (滑る＋1面へ)</button>
+        <button class="hard-btn" onclick="startGame('HARD')">HARD (滑る＋重い＋1面へ)</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -47,7 +47,7 @@
         let gameRunning = false;
         let selectedMode = 'NORMAL';
         let deathCount = 0;
-        let stage10JumpCount = 0; // Stage 10専用ジャンプカウンター
+        let stage10JumpCount = 0;
 
         function startGame(mode) {
             selectedMode = mode;
@@ -64,13 +64,15 @@
 
         function initStage(num) {
             const isHard = (selectedMode === 'HARD');
-            const gravity = isHard ? 1.4 : 0.9;
-            const jumpPower = isHard ? -22 : -20.0;
+            // HARDの重力を 1.4 -> 1.15 に、ジャンプを -22 -> -21 に調整
+            const gravity = isHard ? 1.15 : 0.9;
+            const jumpPower = isHard ? -21.0 : -20.0;
+            const friction = isHard ? 0.88 : 1.0; 
 
-            player = { x: 50, y: 500, w: 30, h: 30, vx: 0, vy: 0, speed: 8.5, jump: jumpPower, gravity: gravity, friction: (isHard ? 0.85 : 1.0), onGround: false };
+            player = { x: 50, y: 500, w: 30, h: 30, vx: 0, vy: 0, speed: 8.5, jump: jumpPower, gravity: gravity, friction: friction, onGround: false };
             currentStage = num;
             stageDisplay.innerText = currentStage;
-            stage10JumpCount = 0; // カウンターリセット
+            stage10JumpCount = 0;
             
             if (selectedMode === 'EASY') lifeDisplay.innerText = "RETRY: " + (3 - deathCount);
             else lifeDisplay.innerText = "NO MERCY (PERMADEATH)";
@@ -85,7 +87,6 @@
                 7: [{x:0,y:550,w:200,h:50,type:'p'}, {x:300,y:450,w:60,h:20,type:'p',fall:true}, {x:550,y:350,w:60,h:20,type:'p',fall:true}, {x:800,y:250,w:60,h:20,type:'p',fall:true}, {x:1100,y:150,w:60,h:20,type:'g'}],
                 8: [{x:0,y:550,w:200,h:50,type:'p'}, {x:300,y:250,w:600,h:20,type:'p'}, {x:500,y:210,w:40,h:40,type:'t',move:10}, {x:1050,y:200,w:60,h:20,type:'g'}],
                 9: [{x:0,y:550,w:200,h:50,type:'p'}, {x:350,y:450,w:40,h:40,type:'t',hidden:true}, {x:650,y:350,w:40,h:40,type:'t',hidden:true}, {x:900,y:250,w:100,h:20,type:'p'}, {x:1100,y:150,w:60,h:20,type:'g'}],
-                // STAGE 10: 物理的にゴール不可能な配置。ゴール(g)をわざと置かない
                 10:[{x:0,y:550,w:150,h:50,type:'p'}, {x:600,y:300,w:30,h:10,type:'p'}] 
             };
 
@@ -123,8 +124,12 @@
             if (keys['ArrowRight']) moveX = player.speed;
             if (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) jump();
 
-            if (selectedMode === 'HARD') player.vx = player.vx * player.friction + moveX * (1 - player.friction);
-            else player.vx = moveX;
+            // HARDモードの慣性計算をマイルドに
+            if (selectedMode === 'HARD') {
+                player.vx = player.vx * player.friction + moveX * (1 - player.friction + 0.05);
+            } else {
+                player.vx = moveX;
+            }
 
             player.vy += player.gravity;
             player.x += player.vx;
@@ -133,9 +138,8 @@
             player.onGround = false;
             checkCollision('y');
 
-            // --- STAGE 10 クリア判定 ---
             if (currentStage === 10 && stage10JumpCount >= 3 && player.x < -player.w) {
-                alert('SECRET CLEAR! おめでとう！');
+                alert('SECRET CLEAR! HARDモード制覇、恐れ入りました！');
                 initStage(1);
             }
 
@@ -192,11 +196,10 @@
             ctx.fillStyle = (selectedMode === 'HARD') ? '#f55' : (selectedMode === 'EASY' ? '#28a745' : '#07f');
             ctx.fillRect(player.x, player.y, player.w, player.h);
 
-            // Stage 10 用ヒント（開発時確認用。不要なら消してください）
             if (currentStage === 10 && stage10JumpCount >= 3) {
-                ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-                ctx.font = "16px sans-serif";
-                ctx.fillText("<< EXIT", 10, 530);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+                ctx.font = "20px sans-serif";
+                ctx.fillText("<< ESCAPE TO CLEAR", 20, 530);
             }
         }
 
